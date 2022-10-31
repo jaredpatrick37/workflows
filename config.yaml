@@ -4,3 +4,8 @@ workflows:
   - catalog: http://trustacks-catalog.eastus2.azurecontainer.io
     components:
     - argo-cd
+- name: fastapi
+  dependencies:
+  - catalog: http://trustacks-catalog.eastus2.azurecontainer.io
+    components:
+    - argo-cd

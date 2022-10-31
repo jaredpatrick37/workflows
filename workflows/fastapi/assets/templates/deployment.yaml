@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.name }}
+  namespace: {{ .Values.name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.name }}
+    spec:
+      containers:
+      - name: {{ .Values.name }}
+        image: {{ .Values.image }}
+        imagePullPolicy: Always
+        {{ if eq .Values.databaseDriver "postgres" }}
+        env:
+        - name: DATABASE_NAME
+          value: {{ .Values.databaseName }}
+        - name: DATABASE_USERNAME
+          value: {{ .Values.databaseUsername }}
+        - name: DATABASE_HOST
+          value: {{ .Values.databaseHost }}
+        volumeMounts:
+        - name: database-password
+          mountPath: /secrets
+          readOnly: true
+        {{ end }}
+        ports:
+        - containerPort: 8080
+        livenessProbe:
+          httpGet:
+            path: /healthz/
+            port: 8080
+        readinessProbe:
+          httpGet:
+            path: /healthz/
+            port: 8080
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 300m
+            memory: 512Mi
+      {{ if eq .Values.databaseDriver "postgres" }}
+      initContainers:
+      - name: liquibase
+        image: quay.io/trustacks/liquibase
+        env:
+        - name: CHANGELOG_FILE
+          value: db.changelog.yaml
+        - name: DATABASE_USERNAME
+          value: {{ .Values.databaseUsername }}
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: database-password
+              key: password
+        - name: DATABASE_JDBC_URL
+          value: {{ .Values.databaseJdbcUrl }}
+        volumeMounts:
+        - name: database-changelog
+          mountPath: /projects/global
+          readOnly: true
+      volumes:
+      - name: database-password
+        secret:
+          secretName: database-password
+          items:
+          - key: password
+            path: database-password
+      - name: database-changelog
+        configMap:
+          name: database-changelog
+          items:
+          - key: changelog
+            path: db.changelog.yaml
+      {{ end }}
+      imagePullSecrets: 
+      - name: registry-secret
